@@ -12,15 +12,22 @@
     <!-- Libraries -->
     <script src="/javascripts/angular.min.js"></script>
     <script src="/javascripts/angular-route.min.js"></script>
+    <script src="/javascripts/angular-resource.min.js"></script>
 
     <!-- Template -->
     <script type="text/ng-template" id="/todos.html">
-    	New task <input type="text" ng-model="newTodo"><button ng-click="save()">Create</button>
+    	New task <input type="text" ng-model="newTodo"><button ng-click="saves()">Create</button>
       Search: <input type="text" ng-model="search.name">
       <ul>
         <li ng-repeat="todo in todos | filter: search">
-          <input type="checkbox" ng-model="todo.completed">
-          <a href="#/{{$index}}">{{todo.name}}</a>
+          <input type="checkbox" ng-model="todo.completed" ng-change="update($index)">
+          <a ng-show="!editing[$index]" href="#/{{todo._id}}">{{todo.name}}</a>
+          <button ng-show="!editing[$index]" ng-click="edit($index)">edit</button>
+          <button ng-show="!editing[$index]" ng-click="remove($index)">remove</button>
+
+          <input ng-show="editing[$index]" type="text" ng-model="todo.name">
+          <button ng-show="editing[$index]" ng-click="update($index)">update</button>
+          <button ]]ng-show="editing[$index]" ng-click="cancel($index)">cancel</button>          
         </li>
       </ul>
     </script>
@@ -42,8 +49,18 @@
         // 	return $http.get('/todos');
         // }])
 		
+
+    /*
+      $resource already comes with following methods
+        { 'get':    {method:'GET'},  // get individual record
+          'save':   {method:'POST'}, // create record
+          'query':  {method:'GET', isArray:true}, // get list all records
+          'remove': {method:'DELETE'}, // remove record
+          'delete': {method:'DELETE'}  // same, remove record      
+        };
+    */
 		.factory('Todos', ['$resource', function($resource) {
-			return $resource.get('todos/:id', null, {
+			return $resource('todos/:id', null, {
 				'update': {method: 'PUT'}
 			});
 		}])
@@ -59,11 +76,54 @@
         	// 	console.log(data, status);
         	// 	$scope.todos = [];
         	// });
+          console.log('<<<<<<<<<<<<<<<<<<<<<<< TodoController');
+          $scope.editing = [];
         	$scope.todos = Todos.query();
+
+          $scope.saves = function() {
+            console.log('new to do ' + $scope.newTodo);
+            if (!$scope.newTodo || $scope.newTodo.length < 1) {
+              return;
+            } else {
+              console.log('has new to do');
+              var newTodo = new Todos({name: $scope.newTodo, completed: false});
+
+              newTodo.$save(function() {
+                $scope.todos.push(newTodo);
+                $scope.newTodo = ''; //empty the text box
+              });
+            }
+          }
+
+          $scope.update = function($index) {
+            console.log('this is index ' + $index);
+            console.log($scope.todos[$index]);
+            var updatedTodo = $scope.todos[$index];
+            Todos.update({id: updatedTodo._id}, updatedTodo, function() {
+              // $scope.todos[$index] = updatedTodo;
+              $scope.editing[$index] = false;
+            });
+          }
+
+          $scope.edit = function(index){
+            $scope.editing[index] = angular.copy($scope.todos[index]);
+          }
+
+          $scope.remove = function($index) {
+            var removedTodo = $scope.todos[$index];
+            Todos.remove({id: removedTodo._id}, function() {
+              $scope.todos.splice($index, 1);
+            });
+          }
+
+          $scope.cancel = function(index){
+            $scope.todos[index] = angular.copy($scope.editing[index]);
+            $scope.editing[index] = false;
+          }
         }])
 
         .controller('TodoDetailCtrl', ['$scope', '$routeParams', 'Todos', function ($scope, $routeParams, Todos) {
-          $scope.todo = Todos[$routeParams.id];
+          $scope.todo = Todos.get({id: $routeParams.id});
         }])
 
         //---------------
